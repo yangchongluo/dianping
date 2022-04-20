@@ -25,14 +25,17 @@ public class CacheClient {
 
     private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
 
+    // 基于构造函数的注入
     public CacheClient(StringRedisTemplate stringRedisTemplate) {
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
+    // 将任意Java对象序列化为json并存储在string类型的key中，并且可以设置TTL过期时间
     public void set(String key, Object value, Long time, TimeUnit unit) {
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value), time, unit);
     }
 
+    // 将任意Java对象序列化为json并存储在string类型的key中，并且可以设置逻辑过期时间，用于处理缓存击穿问题
     public void setWithLogicalExpire(String key, Object value, Long time, TimeUnit unit) {
         // 设置逻辑过期
         RedisData redisData = new RedisData();
@@ -42,8 +45,14 @@ public class CacheClient {
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData));
     }
 
-    public <R,ID> R queryWithPassThrough(
-            String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit){
+    // 根据指定的key查询缓存，并反序列化为指定类型，利用缓存空值的方式解决缓存穿透问题
+    public <R,ID> R queryWithPassThrough( // <R>是定义泛型 R使用泛型，因为不确定传的数据是什么类型的
+            String keyPrefix, // Redis中key的前缀
+            ID id,
+            Class<R> type, // 告诉函数需要返回的类型是什么
+            Function<ID, R> dbFallback, // 查询数据的方法，这个参数是一个方法
+            Long time,
+            TimeUnit unit){
         String key = keyPrefix + id;
         // 1.从redis查询商铺缓存
         String json = stringRedisTemplate.opsForValue().get(key);
@@ -72,8 +81,14 @@ public class CacheClient {
         return r;
     }
 
+    // 根据指定的key查询缓存，并反序列化为指定类型，需要利用逻辑过期解决缓存击穿问题
     public <R, ID> R queryWithLogicalExpire(
-            String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit) {
+            String keyPrefix,
+            ID id,
+            Class<R> type,
+            Function<ID, R> dbFallback,
+            Long time,
+            TimeUnit unit) {
         String key = keyPrefix + id;
         // 1.从redis查询商铺缓存
         String json = stringRedisTemplate.opsForValue().get(key);
@@ -117,6 +132,7 @@ public class CacheClient {
         return r;
     }
 
+    // 根据指定的key查询缓存，并反序列化为指定类型，需要利用解决缓存击穿问题
     public <R, ID> R queryWithMutex(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit) {
         String key = keyPrefix + id;
